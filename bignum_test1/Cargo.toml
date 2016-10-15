@@ -1,0 +1,9 @@
+[package]
+name = "bignum_test1"
+version = "0.1.0"
+authors = ["XZentus <z_xmn@mail.ru>"]
+
+[dependencies]
+num = "0.1.35"
+num-bigint = "0.1.35"
+num-traits = "0.1.35"

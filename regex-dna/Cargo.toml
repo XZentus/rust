@@ -1,0 +1,7 @@
+[package]
+name = "regex-dna"
+version = "0.1.0"
+authors = ["Nex"]
+
+[dependencies]
+regex = "0.1.48"
