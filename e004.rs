@@ -20,7 +20,7 @@ fn main() {
         for b in (a..1000).rev() {
             let c = a * b;
             if c < largest {
-                continue;
+                break;
             }
             else if is_pal_10(c) {
                 largest = c;
