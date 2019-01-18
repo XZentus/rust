@@ -1,6 +1,8 @@
+use std::fmt;
+
 use rand::{thread_rng, Rng};
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 enum Expr {
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
@@ -11,6 +13,22 @@ enum Expr {
     Tan(Box<Expr>),
     Const(f64),
     Arg,
+}
+
+impl fmt::Display for Expr {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Add(e1, e2) => write!(f, "({} + {})", e1, e2),
+            Sub(e1, e2) => write!(f, "({} - {})", e1, e2),
+            Mul(e1, e2) => write!(f, "({} * {})", e1, e2),
+            Div(e1, e2) => write!(f, "({} / {})", e1, e2),
+            Sin(e1)     => write!(f, "sin({})", e1),
+            Cos(e1)     => write!(f, "cos({})", e1),
+            Tan(e1)     => write!(f, "tan({})", e1),
+            Const(n)    => write!(f, "{}", n),
+            Arg         => write!(f, "x"),
+        }
+    }
 }
 
 const FUNCTION_PROBABILITY: f64 =    0.5;
@@ -117,7 +135,7 @@ impl Expr {
 use crate::Expr::*;
 
 fn target_fun(x: f64) -> f64 {
-    (1.46327*x*x).sin() + x/0.3423
+    (1.46327*x*x) + x/0.3423 - 10.0
 }
 
 const FITNESS_MIN:    f64   =   -7.0;
@@ -135,7 +153,7 @@ fn make_points<F>(f: F) -> Vec<f64>
     result
 }
 
-const EXCEPTION_WEIGHT: f64 = 1000.0;
+const EXCEPTION_WEIGHT: f64 = 10000.0;
 
 fn calc_fitness<F>(data: &Vec<f64>, f: F) -> f64
   where F: Fn(f64) -> f64 {
@@ -148,14 +166,20 @@ fn calc_fitness<F>(data: &Vec<f64>, f: F) -> f64
               }
           }
           else {
-              result += (fx - data[x]).abs();
+              let mut addition = (fx - data[x]).abs();
+              if addition.is_nan() {
+                  addition = EXCEPTION_WEIGHT;
+              }
+              result += addition;
           }
+
       }
       result
   }
 
 const POPULATION_SIZE:     usize = 80;
 const INDIVIDUALS_SURVIVE: usize = 30;
+const CHANCE_DUPLICATE:    f64   =  0.0;
 
 const DEPTH: u32 = 10;
 
@@ -178,11 +202,19 @@ fn train(population: &mut Vec<Expr>, points: &Vec<f64>, generations: usize) {
             let mut expr = db[i].0.clone();
             expr.mutate_with_depth(DEPTH);
             let fit = calc_fitness(points, |x| expr.eval(x));
-            db.push((expr, fit));
+            if fit < db[i].1 {
+                if rand::random::<f64>() < CHANCE_DUPLICATE {
+                    db.push((expr, fit));
+                }
+                else {
+                    db[i].0 = expr;
+                    db[i].1 = fit;
+                }
+            }
         }
 
         //sort
-        db.as_mut_slice().sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+        db.sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
 
         //drop
         db.truncate(INDIVIDUALS_SURVIVE);
@@ -210,14 +242,14 @@ fn main() {
     let points = make_points(target_fun);
 
     for i in 0..5 {
-        println!("{:?} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
+        println!("{} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
     }
 
     println!("Trainig begin...");
-    train(&mut population, &points, 100);
+    train(&mut population, &points, 1500);
     println!("Trainig done");
 
     for i in 0..5 {
-        println!("{:?} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
+        println!("{} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
     }
 }
