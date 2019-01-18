@@ -1,11 +1,6 @@
 use rand::{thread_rng, Rng};
 
-/*
-const POPULATION_SIZE:f64      =   50.0;
-const INDIVIDUALS_SURVIVE:f64  =   20.0;
-*/
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Expr {
     Add(Box<Expr>, Box<Expr>),
     Sub(Box<Expr>, Box<Expr>),
@@ -159,20 +154,70 @@ fn calc_fitness<F>(data: &Vec<f64>, f: F) -> f64
       result
   }
 
+const POPULATION_SIZE:     usize = 80;
+const INDIVIDUALS_SURVIVE: usize = 30;
+
+const DEPTH: u32 = 10;
+
+fn train(population: &mut Vec<Expr>, points: &Vec<f64>, generations: usize) {
+    let mut db: Vec<(Expr, f64)> = Vec::with_capacity(population.len());
+
+    for _ in 0..population.len() {
+        let e = population.pop().unwrap();
+        let fit = calc_fitness(points, |x| e.eval(x));
+        db.push((e, fit));
+    }
+
+    for i in 0..generations {
+        if i % 100 == 0 {
+            println!("Generation {}...", i);
+        }
+
+        //mutate, add mutated
+        for i in 0..db.len() {
+            let mut expr = db[i].0.clone();
+            expr.mutate_with_depth(DEPTH);
+            let fit = calc_fitness(points, |x| expr.eval(x));
+            db.push((expr, fit));
+        }
+
+        //sort
+        db.as_mut_slice().sort_unstable_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
+
+        //drop
+        db.truncate(INDIVIDUALS_SURVIVE);
+
+        //add new
+        for _ in INDIVIDUALS_SURVIVE..POPULATION_SIZE {
+            let expr = Expr::generate_with_depth(DEPTH);
+            let fit = calc_fitness(points, |x| expr.eval(x));
+            db.push((expr, fit));
+        }
+    }
+
+    population.clear();
+    for (e, _) in db {
+        population.push(e);
+    }
+}
+
 fn main() {
-    let mut e1 = Expr::generate_with_depth(5);
-    let mut e2 = Expr::generate_with_depth(5);
+    let mut population = Vec::with_capacity(POPULATION_SIZE);
+    for _ in 0..POPULATION_SIZE {
+        population.push(Expr::generate_with_depth(DEPTH));
+    }
 
-    let v_target = make_points(target_fun);
+    let points = make_points(target_fun);
 
-    println!("{:?}\n{:?}", e1, e2);
+    for i in 0..5 {
+        println!("{:?} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
+    }
 
-    println!("{}", calc_fitness(&v_target, |x| e1.eval(x)));
-    println!("{}", calc_fitness(&v_target, |x| e2.eval(x)));
+    println!("Trainig begin...");
+    train(&mut population, &points, 100);
+    println!("Trainig done");
 
-    for _ in 0..5 {
-        e1.mutate_with_depth(5);
-        e2.mutate_with_depth(5);
-        println!("\n\n{:?}\n{:?}", e1, e2);
+    for i in 0..5 {
+        println!("{:?} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
     }
 }
