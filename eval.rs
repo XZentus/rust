@@ -1,6 +1,32 @@
+// #![feature(box_syntax, box_patterns)]
+
 use std::fmt;
 
 use rand::{thread_rng, Rng};
+
+const FITNESS_MIN:    f64   =   -7.0;
+const FITNESS_MAX:    f64   =    7.0;
+const FITNESS_POINTS: usize = 2000;
+const FITNESS_STEP:   f64   = (FITNESS_MAX - FITNESS_MIN) / (FITNESS_POINTS - 1) as f64;
+
+const FUNCTION_PROBABILITY: f64 =    0.5;
+const ARG_PROBABILITY:      f64 =    0.7;
+const MIN_VAL:              f64 =  -20.0;
+const MAX_VAL:              f64 =   20.0;
+
+const MUTATE_ARG:           f64 =    0.1;
+const MUTATE_NUM:           f64 =    0.6;
+const MUTATE_FUN:           f64 =    0.2;
+const MUTATE_MIN:           f64 =   -2.0;
+const MUTATE_MAX:           f64 =    2.0;
+
+const POPULATION_SIZE:     usize = 80;
+const INDIVIDUALS_SURVIVE: usize = 30;
+const CHANCE_DUPLICATE:    f64   =  0.0;
+
+const EXCEPTION_WEIGHT: f64 = 10000.0;
+
+const DEPTH: u32 = 10;
 
 #[derive(Clone)]
 enum Expr {
@@ -31,16 +57,7 @@ impl fmt::Display for Expr {
     }
 }
 
-const FUNCTION_PROBABILITY: f64 =    0.5;
-const ARG_PROBABILITY:      f64 =    0.7;
-const MIN_VAL:              f64 =  -20.0;
-const MAX_VAL:              f64 =   20.0;
-
-const MUTATE_ARG:           f64 =    0.1;
-const MUTATE_NUM:           f64 =    0.6;
-const MUTATE_FUN:           f64 =    0.2;
-const MUTATE_MIN:           f64 =   -2.0;
-const MUTATE_MAX:           f64 =    2.0;
+static mut SIMPLIFY_COUNTER: u32 = 0;
 
 impl Expr {
     fn eval(&self, arg: f64) -> f64 {
@@ -130,18 +147,91 @@ impl Expr {
             _ => (),
         }
     }
+
+    fn simplify(&mut self) -> Option<f64> {
+        match self {
+            Add(e1, e2) => {
+                if let Some(a) = e1.simplify() {
+                    if let Some(b) = e2.simplify() {
+                        let result = a + b;
+                        unsafe { SIMPLIFY_COUNTER += 1; }
+                        *self = Const(result);
+                        return Some(result);
+                    }
+                }
+                None
+            }
+            Sub(e1, e2) => {
+                if let Some(a) = e1.simplify() {
+                    if let Some(b) = e2.simplify() {
+                        let result = a - b;
+                        unsafe { SIMPLIFY_COUNTER += 1; }
+                        *self = Const(result);
+                        return Some(result);
+                    }
+                }
+                None
+            }
+            Mul(e1, e2) => {
+                if let Some(a) = e1.simplify() {
+                    if let Some(b) = e2.simplify() {
+                        let result = a * b;
+                        unsafe { SIMPLIFY_COUNTER += 1; }
+                        *self = Const(result);
+                        return Some(result);
+                    }
+                }
+                None
+            }
+            Div(e1, e2) => {
+                if let Some(a) = e1.simplify() {
+                    if let Some(b) = e2.simplify() {
+                        let result = a / b;
+                        unsafe { SIMPLIFY_COUNTER += 1; }
+                        *self = Const(result);
+                        return Some(result);
+                    }
+                }
+                None
+            }
+            Sin(e1) => {
+                if let Some(a) = e1.simplify() {
+                    let result = a.sin();
+                    unsafe { SIMPLIFY_COUNTER += 1; }
+                    *self = Const(result);
+                    return Some(result);
+                }
+                None
+            }
+            Cos(e1) => {
+                if let Some(a) = e1.simplify() {
+                    let result = a.sin();
+                    unsafe { SIMPLIFY_COUNTER += 1; }
+                    *self = Const(result);
+                    return Some(result);
+                }
+                None
+            }
+            Tan(e1) => {
+                if let Some(a) = e1.simplify() {
+                    let result = a.sin();
+                    unsafe { SIMPLIFY_COUNTER += 1; }
+                    *self = Const(result);
+                    return Some(result);
+                }
+                None
+            }
+            Const(n) => Some(*n),
+            _ => None,
+        }
+    }
 }
 
 use crate::Expr::*;
 
 fn target_fun(x: f64) -> f64 {
-    (1.46327*x*x) + x/0.3423 - 10.0
+    (2.16327*x).cos() + x*0.3423 - 3.0
 }
-
-const FITNESS_MIN:    f64   =   -7.0;
-const FITNESS_MAX:    f64   =    7.0;
-const FITNESS_POINTS: usize =  1000;
-const FITNESS_STEP:   f64   = (FITNESS_MAX - FITNESS_MIN) / (FITNESS_POINTS - 1) as f64;
 
 fn make_points<F>(f: F) -> Vec<f64>
   where F: Fn(f64) -> f64 {
@@ -152,8 +242,6 @@ fn make_points<F>(f: F) -> Vec<f64>
     }
     result
 }
-
-const EXCEPTION_WEIGHT: f64 = 10000.0;
 
 fn calc_fitness<F>(data: &Vec<f64>, f: F) -> f64
   where F: Fn(f64) -> f64 {
@@ -177,12 +265,6 @@ fn calc_fitness<F>(data: &Vec<f64>, f: F) -> f64
       result
   }
 
-const POPULATION_SIZE:     usize = 80;
-const INDIVIDUALS_SURVIVE: usize = 30;
-const CHANCE_DUPLICATE:    f64   =  0.0;
-
-const DEPTH: u32 = 10;
-
 fn train(population: &mut Vec<Expr>, points: &Vec<f64>, generations: usize) {
     let mut db: Vec<(Expr, f64)> = Vec::with_capacity(population.len());
 
@@ -201,6 +283,7 @@ fn train(population: &mut Vec<Expr>, points: &Vec<f64>, generations: usize) {
         for i in 0..db.len() {
             let mut expr = db[i].0.clone();
             expr.mutate_with_depth(DEPTH);
+            //expr.simplify();
             let fit = calc_fitness(points, |x| expr.eval(x));
             if fit < db[i].1 {
                 if rand::random::<f64>() < CHANCE_DUPLICATE {
@@ -228,7 +311,9 @@ fn train(population: &mut Vec<Expr>, points: &Vec<f64>, generations: usize) {
     }
 
     population.clear();
-    for (e, _) in db {
+    for i in 0..POPULATION_SIZE {
+        let mut e = db[i].0.clone();
+        e.simplify();
         population.push(e);
     }
 }
@@ -241,15 +326,13 @@ fn main() {
 
     let points = make_points(target_fun);
 
-    for i in 0..5 {
-        println!("{} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
-    }
-
     println!("Trainig begin...");
-    train(&mut population, &points, 1500);
+    train(&mut population, &points, 5000);
     println!("Trainig done");
 
     for i in 0..5 {
         println!("{} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
     }
+
+    println!("SIMPLIFY_COUNTER = {}", unsafe { SIMPLIFY_COUNTER });
 }
