@@ -1,5 +1,3 @@
-// #![feature(box_syntax, box_patterns)]
-
 use std::fmt;
 
 use rand::{thread_rng, Rng};
@@ -22,7 +20,7 @@ const MUTATE_MAX:           f64 =    2.0;
 
 const POPULATION_SIZE:     usize = 80;
 const INDIVIDUALS_SURVIVE: usize = 30;
-const CHANCE_DUPLICATE:    f64   =  0.0;
+const CHANCE_DUPLICATE:    f64   =  0.02;
 
 const EXCEPTION_WEIGHT: f64 = 10000.0;
 
@@ -56,8 +54,6 @@ impl fmt::Display for Expr {
         }
     }
 }
-
-static mut SIMPLIFY_COUNTER: u32 = 0;
 
 impl Expr {
     fn eval(&self, arg: f64) -> f64 {
@@ -151,75 +147,47 @@ impl Expr {
     fn simplify(&mut self) -> Option<f64> {
         match self {
             Add(e1, e2) => {
-                if let Some(a) = e1.simplify() {
-                    if let Some(b) = e2.simplify() {
-                        let result = a + b;
-                        unsafe { SIMPLIFY_COUNTER += 1; }
-                        *self = Const(result);
-                        return Some(result);
-                    }
-                }
-                None
+                let a = e1.simplify()?;
+                let b = e2.simplify()?;
+                let result = a + b;
+                *self = Const(result);
+                return Some(result);
             }
             Sub(e1, e2) => {
-                if let Some(a) = e1.simplify() {
-                    if let Some(b) = e2.simplify() {
-                        let result = a - b;
-                        unsafe { SIMPLIFY_COUNTER += 1; }
-                        *self = Const(result);
-                        return Some(result);
-                    }
-                }
-                None
+                let a = e1.simplify()?;
+                let b = e2.simplify()?;
+                let result = a - b;
+                *self = Const(result);
+                return Some(result);
             }
             Mul(e1, e2) => {
-                if let Some(a) = e1.simplify() {
-                    if let Some(b) = e2.simplify() {
-                        let result = a * b;
-                        unsafe { SIMPLIFY_COUNTER += 1; }
-                        *self = Const(result);
-                        return Some(result);
-                    }
-                }
-                None
+                let a = e1.simplify()?;
+                let b = e2.simplify()?;
+                let result = a * b;
+                *self = Const(result);
+                return Some(result);
             }
             Div(e1, e2) => {
-                if let Some(a) = e1.simplify() {
-                    if let Some(b) = e2.simplify() {
-                        let result = a / b;
-                        unsafe { SIMPLIFY_COUNTER += 1; }
-                        *self = Const(result);
-                        return Some(result);
-                    }
-                }
-                None
+                let a = e1.simplify()?;
+                let b = e2.simplify()?;
+                let result = a / b;
+                *self = Const(result);
+                return Some(result);
             }
             Sin(e1) => {
-                if let Some(a) = e1.simplify() {
-                    let result = a.sin();
-                    unsafe { SIMPLIFY_COUNTER += 1; }
-                    *self = Const(result);
-                    return Some(result);
-                }
-                None
+                let result = e1.simplify()?.sin();
+                *self = Const(result);
+                return Some(result);
             }
             Cos(e1) => {
-                if let Some(a) = e1.simplify() {
-                    let result = a.sin();
-                    unsafe { SIMPLIFY_COUNTER += 1; }
-                    *self = Const(result);
-                    return Some(result);
-                }
-                None
+                let result = e1.simplify()?.cos();
+                *self = Const(result);
+                return Some(result);
             }
             Tan(e1) => {
-                if let Some(a) = e1.simplify() {
-                    let result = a.sin();
-                    unsafe { SIMPLIFY_COUNTER += 1; }
-                    *self = Const(result);
-                    return Some(result);
-                }
-                None
+                let result = e1.simplify()?.tan();
+                *self = Const(result);
+                return Some(result);
             }
             Const(n) => Some(*n),
             _ => None,
@@ -333,6 +301,4 @@ fn main() {
     for i in 0..5 {
         println!("{} \nFitness: {}", population[i], calc_fitness(&points, |x| population[i].eval(x)));
     }
-
-    println!("SIMPLIFY_COUNTER = {}", unsafe { SIMPLIFY_COUNTER });
 }
